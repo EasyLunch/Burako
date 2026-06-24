@@ -477,7 +477,7 @@ function entry(){
 
     <div class="bar">
       <button id="nextPlayer" class="btn btn-blue">
-        ${S.pidx===n-1?'✅ Ver resultado':'➡️ Siguiente jugador'}
+        ${S.pidx===n-1?'✅ Confirmar':'➡️ Siguiente jugador'}
       </button>
     </div>
   </div>`;
@@ -584,8 +584,10 @@ function bind(){
     S.players=names.map(n=>({name:n||'Jugador'}));
     S.target=Math.max(100, parseInt(document.getElementById('target')?.value)||2500);
     saveNames(names);
-    S.hands=[];
-    S.screen='game';
+    S.hands=[];S.hand=[];S.pidx=0;
+    S.form=blankForm();S.snap=null;
+    S.photo=null;S.photoNotes='';S.error=null;
+    S.screen='entry';
     save();render();
   });
 
@@ -635,7 +637,21 @@ function bind(){
   on('nextPlayer',()=>{
     syncAll();
     S.snap={...S.form};
-    S.screen='result';render();
+    const total=calcScore(S.snap);
+    S.hand.push({pidx:S.pidx,total,snap:{...S.snap}});
+    if(S.pidx===S.players.length-1){
+      S.hands.push(S.hand);
+      save();
+      const ts=totals();
+      const wonIdx=ts.findIndex(t=>t>=S.target);
+      S.screen=wonIdx>=0?'winner':'game';
+    }else{
+      S.pidx++;
+      S.form=blankForm();S.snap=null;
+      S.photo=null;S.photoNotes='';S.error=null;
+      S.screen='entry';
+    }
+    render();
   });
   bindFile('camIn',(url)=>{S.photo=url;S.error=null;render();});
   bindFile('galIn',(url)=>{S.photo=url;S.error=null;render();});
