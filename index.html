@@ -18,10 +18,11 @@
   --blue:#2563eb;--green:#059669;--red:#dc2626;--amber:#d97706;
   --r:13px;
 }
+html{height:-webkit-fill-available;}
 html,body{height:100%;background:var(--bg);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   overflow:hidden;-webkit-font-smoothing:antialiased;font-size:16px;}
-#app{height:100vh;display:flex;flex-direction:column;max-width:520px;margin:0 auto;}
+#app{height:100vh;height:100dvh;display:flex;flex-direction:column;max-width:520px;margin:0 auto;overflow:hidden;}
 
 /* ── layout ── */
 .topbar{display:flex;align-items:center;gap:10px;background:var(--bg2);
@@ -266,7 +267,7 @@ function newgame(){
     ${chips}`;
   }).join('');
   return `
-  <div style="display:flex;flex-direction:column;height:100vh;overflow:hidden">
+  <div style="display:flex;flex-direction:column;flex:1;overflow:hidden">
     <div class="topbar">
       <button id="backHome" class="back">←</button>
       <h2>Nueva partida</h2>
@@ -308,7 +309,7 @@ function settings(){
     ['claude-haiku-4-5-20251001','Haiku 4.5 — Más rápido'],
   ].map(([v,l])=>`<option value="${v}" ${S.model===v?'selected':''}>${l}</option>`).join('');
   return `
-  <div style="display:flex;flex-direction:column;height:100vh;overflow:hidden">
+  <div style="display:flex;flex-direction:column;flex:1;overflow:hidden">
     <div class="topbar">
       <button id="backHome2" class="back">←</button>
       <h2>Configuración</h2>
@@ -346,7 +347,7 @@ function game(){
       <td class="tc bold big">${ts[i].toLocaleString()}</td>${cells}</tr>`;
   }).join('');
   return`
-  <div style="display:flex;flex-direction:column;height:100vh;overflow:hidden">
+  <div style="display:flex;flex-direction:column;flex:1;overflow:hidden">
     <div class="topbar" style="justify-content:space-between">
       <div><h2>🃏 Burako</h2><div class="sub">Mano ${hn+1} · Meta: ${S.target.toLocaleString()} pts</div></div>
       <button id="goHome" class="btn-icon">≡</button>
@@ -386,7 +387,7 @@ function entry(){
   </div>`;
 
   return`
-  <div style="display:flex;flex-direction:column;height:100vh;overflow:hidden">
+  <div style="display:flex;flex-direction:column;flex:1;overflow:hidden">
     <div class="topbar">
       <button id="backGame" class="back">←</button>
       <div class="f1"><h2>${x(p.name)}</h2><div class="sub">Jugador ${S.pidx+1} de ${n}</div></div>
@@ -504,7 +505,7 @@ function result(){
   }
 
   return`
-  <div style="display:flex;flex-direction:column;height:100vh;overflow:hidden">
+  <div style="display:flex;flex-direction:column;flex:1;overflow:hidden">
     <div class="topbar">
       <button id="backEntry3" class="back">←</button>
       <div><h2>${x(p.name)}</h2><div class="sub">Resultado mano ${S.hands.length+1}</div></div>
