@@ -423,9 +423,12 @@ function entry(){
           <div class="cl">Canastas sucias<br><span class="small">100 pts base cada una</span></div>
         </div>
 
-        <label class="lbl">Valor total de fichas en las canastas</label>
-        <input id="fj" type="number" min="0" value="${f.fichas_en_juego}" placeholder="0">
-        ${S.photoNotes?`<p style="font-size:.72rem;color:var(--dim);margin-top:4px">${x(S.photoNotes)}</p>`:''}
+        <label class="lbl">Valor total de fichas ${hasPhoto?'<span style="color:#60a5fa">(verificá y corregí si hace falta)</span>':''}</label>
+        <input id="fj" type="number" min="0" value="${f.fichas_en_juego}" placeholder="0" style="font-size:1.2rem;font-weight:700;padding:14px">
+        ${S.photoNotes?`<div style="margin-top:6px;background:var(--bg);border-radius:8px;padding:10px 12px">
+          <div style="font-size:.68rem;color:var(--dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em">Grupos detectados</div>
+          <div style="font-size:.82rem;color:var(--text);line-height:1.8;font-family:monospace;white-space:pre-wrap">${x(S.photoNotes)}</div>
+        </div>`:''}
 
         ${sinCan?`<div style="margin-top:10px;background:#2d1515;border:1px solid var(--red);border-radius:9px;padding:9px 11px;font-size:.8rem;color:#fca5a5">
           ⚠️ Sin canastas — todos los puntos serán negativos</div>`:''}
@@ -755,39 +758,54 @@ async function analyzePhoto(){
       },
       body:JSON.stringify({
         model:'claude-sonnet-4-6',
-        max_tokens:1024,
+        max_tokens:2048,
         tools:[{
           name:'registrar_fichas',
-          description:`Registra el conteo de fichas de Burako de la foto.
+          description:`Analiza una foto de Burako y registra CADA GRUPO de fichas visible por separado.
 
-Una CANASTA es un grupo de 7 o mas fichas que forman UNA DE ESTAS DOS COSAS:
-1. PIERNA: 7+ fichas con el mismo numero (ej: siete 9s)
-2. ESCALERA: 7+ fichas de numeros consecutivos del mismo color (ej: 5-6-7-8-9-10-11 todos negros)
+REGLAS:
+- Las fichas estan organizadas en GRUPOS sobre la mesa. Analiza cada grupo por separado.
+- Para cada grupo, lista CADA FICHA INDIVIDUAL que contiene (ej: ["3","3","3","3","3","3","2"])
+- Valores validos: "1" al "13" o "comodin" (para jokers/fichas con dibujo)
+- El numero 2 puede usarse como comodin en canastas
 
-El numero 2 puede usarse como comodin en cualquiera de los dos casos.
-Canasta LIMPIA: sin comodin ni 2 de diferente color/usado como comodin
-Canasta SUCIA: tiene comodin (ficha con dibujo) o 2 de diferente color usado como comodin
-Menos de 7 fichas = NO es canasta.`,
+CANASTA (grupo de 7+ fichas):
+- PIERNA: 7+ fichas del mismo numero → canasta = "limpia" o "sucia"
+- ESCALERA: 7+ numeros consecutivos del mismo color → canasta = "limpia" o "sucia"
+- LIMPIA: ninguna ficha es comodin ni 2 usado como comodin
+- SUCIA: tiene comodin (joker) o 2 de diferente color usado como comodin
+- Menos de 7 fichas → canasta = "no"`,
           input_schema:{
             type:'object',
             properties:{
-              limpias:{type:'integer',description:'Cantidad de canastas limpias (piernas o escaleras de 7+ fichas sin comodin ni 2 comodin)'},
-              sucias:{type:'integer',description:'Cantidad de canastas sucias (piernas o escaleras de 7+ fichas CON comodin o 2 usado como comodin)'},
-              conteo:{type:'object',description:'Cantidad de fichas de cada numero visibles',
-                properties:{'1':{type:'integer'},'2':{type:'integer'},'3':{type:'integer'},
-                  '4':{type:'integer'},'5':{type:'integer'},'6':{type:'integer'},
-                  '7':{type:'integer'},'8':{type:'integer'},'9':{type:'integer'},
-                  '10':{type:'integer'},'11':{type:'integer'},'12':{type:'integer'},
-                  '13':{type:'integer'},'comodin':{type:'integer'}}
+              grupos:{
+                type:'array',
+                description:'Lista de cada grupo de fichas visible en la foto',
+                items:{
+                  type:'object',
+                  properties:{
+                    fichas:{
+                      type:'array',
+                      description:'Cada ficha del grupo: "1" a "13" o "comodin"',
+                      items:{type:'string'}
+                    },
+                    canasta:{
+                      type:'string',
+                      enum:['limpia','sucia','no'],
+                      description:'limpia=canasta sin comodin, sucia=canasta con comodin, no=no es canasta'
+                    }
+                  },
+                  required:['fichas','canasta']
+                }
               }
             },
-            required:['limpias','sucias','conteo']
+            required:['grupos']
           }
         }],
         tool_choice:{type:'tool',name:'registrar_fichas'},
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:mime,data:b64}},
-          {type:'text',text:'Analiza esta foto de fichas de Burako. Cuenta cuantas fichas hay de cada numero (1-13) y comodines. Identifica canastas: PIERNA = 7+ fichas del mismo numero; ESCALERA = 7+ numeros consecutivos del mismo color. El numero 2 puede usarse como comodin. Registra usando la herramienta.'}
+          {type:'text',text:'Analizá esta foto de fichas de Burako. Identificá cada grupo de fichas visible y registrá sus fichas una por una. Para cada grupo indicá si forma canasta (pierna=7+ del mismo numero, escalera=7+ consecutivos mismo color) y si es limpia o sucia. Registrá todos los grupos con la herramienta.'}
         ]}]
       })
     });
@@ -799,16 +817,34 @@ Menos de 7 fichas = NO es canasta.`,
     if(!toolResult?.input) throw new Error('Sin respuesta estructurada del modelo.');
     const parsed=toolResult.input;
 
-    // Nosotros calculamos el total — no Claude
+    // Calculamos total por grupo — más preciso que contar por número
     const VALS={1:15,2:20,3:5,4:5,5:5,6:5,7:5,8:10,9:10,10:10,11:10,12:10,13:10,comodin:50};
-    const conteo=parsed.conteo||{};
-    const total=Object.entries(conteo).reduce((s,[k,qty])=>s+(VALS[k]||0)*(parseInt(qty)||0),0);
+    const grupos=parsed.grupos||[];
+    let total=0,limpias=0,sucias=0;
+    const detalleLineas=[];
+
+    for(const g of grupos){
+      const fichas=g.fichas||[];
+      const pts=fichas.reduce((s,f)=>s+(VALS[String(f).toLowerCase()]||0),0);
+      total+=pts;
+      const dispFichas=fichas.map(f=>f==='comodin'?'🃏':f).join('-');
+      if(g.canasta==='limpia'){
+        limpias++;
+        detalleLineas.push(`✅ ${dispFichas} = ${pts}pts`);
+      }else if(g.canasta==='sucia'){
+        sucias++;
+        detalleLineas.push(`♻️ ${dispFichas} = ${pts}pts`);
+      }else{
+        detalleLineas.push(`· ${dispFichas} = ${pts}pts`);
+      }
+    }
+
     if(total>0) S.form.fichas_en_juego=total;
-    if(parsed.limpias!=null) S.form.limpias=Math.max(0,parseInt(parsed.limpias)||0);
-    if(parsed.sucias!=null)  S.form.sucias=Math.max(0,parseInt(parsed.sucias)||0);
-    const detalle=Object.entries(conteo).filter(([,q])=>parseInt(q)>0)
-      .map(([k,q])=>`${q}×${k==='comodin'?'🃏':k}`).join(' ');
-    S.photoNotes=detalle?`Detecté: ${detalle} = ${total} pts`:'';
+    S.form.limpias=limpias;
+    S.form.sucias=sucias;
+    S.photoNotes=detalleLineas.length
+      ?detalleLineas.join('\n')+`\n─────\nTotal: ${total} pts | ${limpias} limpia${limpias!==1?'s':''}, ${sucias} sucia${sucias!==1?'s':''}`
+      :'';
 
     S.loading=false;S.error=null;render();
     setTimeout(()=>{
